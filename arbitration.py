@@ -37,6 +37,8 @@ async def on_ready():
     await bot.change_presence(status=discord.Status.online, activity=discord.Activity(name='Starting up...', type=3))
     sched.add_job(arby_post_task, trigger='cron', minute='*', second='20', id='Elite', replace_existing=True) # trigger every minute, works best cus cron
 
+bot.load_extension("cogs.warframe")
+
 @bot.command(name="reload")
 @commands.is_owner()
 async def reload(ctx, cog):
