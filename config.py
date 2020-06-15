@@ -10,4 +10,4 @@ guildid = server id
 # Types: Grineer Defense, Corpus Survival..
 # Nodes: Sechura, Helene, Hydron...
 ## webhook url to post current arbitration
-arbyhook   = 'some url'
+arbyhook   = ''
