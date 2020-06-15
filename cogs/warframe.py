@@ -607,9 +607,19 @@ async def inv():
                         embed.set_footer(text=invasion['id'])
                         for i in servers:
                             try:
+                                guild = bot.get_guild(i['serverid'])
+                            except:
+                                pass
+                            content = ''
+                            try:
+                                role = discord.utils.get(guild.roles, name='Potato')
+                                content+=' '+role.mention
+                            except:
+                                pass
+                            try:
                                 async with aiohttp.ClientSession() as session:
                                     webhook = Webhook.from_url(i['giftinvasionswebhook'], adapter=AsyncWebhookAdapter(session))
-                                    await webhook.send(embed=embed)
+                                    await webhook.send(content=content, embed=embed)
                             except:
                                 pass
             else:
@@ -629,9 +639,19 @@ async def inv():
                         embed.set_footer(text=invasion['id'])
                         for i in servers:
                             try:
+                                guild = bot.get_guild(i['serverid'])
+                            except:
+                                pass
+                            content = ''
+                            try:
+                                role = discord.utils.get(guild.roles, name='Potato')
+                                content+=' '+role.mention
+                            except:
+                                pass
+                            try:
                                 async with aiohttp.ClientSession() as session:
                                     webhook = Webhook.from_url(i['giftinvasionswebhook'], adapter=AsyncWebhookAdapter(session))
-                                    await webhook.send(embed=embed)
+                                    await webhook.send(content=content, embed=embed)
                             except:
                                 pass
             inva.append(invasion['id'])
