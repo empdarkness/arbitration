@@ -102,51 +102,58 @@ async def arby_post_task():
     if request_arby() == OldArbi: ## prevents duplicate posting
         pass
     else:
-        guild = bot.get_guild(guildid)
-        content = '' # prepares empty string, final string will post with multiple mentions
-        # ~~ Factions
-        for y in factions:
-            if y in CurrentArbi['solnodedata']['enemy']:
-                try:
-                    role = discord.utils.get(guild.roles, name=str(y))
-                    content+=' '+role.mention
-                except:
-                    pass
-        ## ~~ Mission types
-        for y in mtypes:
-            if y in CurrentArbi['solnodedata']['type']:
-                try:
-                    role = discord.utils.get(guild.roles, name=str(y))
-                    content+=' '+role.mention
-                except:
-                    pass
-                for f in factions:
-                    if f in CurrentArbi['solnodedata']['enemy']:
-                        try:
-                            role = discord.utils.get(guild.roles, name=str(f)+' '+str(y))
-                            content+=' '+role.mention
-                        except:
-                            pass
-        # ~~ Dark sector bonus
-        x = ''
-        if CurrentArbi['solnodedata']['dark_sector'] == True:
-            x = 'Dark Sector (+{})'.format(CurrentArbi['solnodedata']['bonus'])
-        # ~~ Node mentions
-        try:
-            role = discord.utils.get(guild.roles, name=str(CurrentArbi['solnodedata']['node']))
-            content+=' '+role.mention
-            arb = discord.Embed(title=CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'], ### making discord embed here
-                                description=CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
-                                colour=discord.Colour(0xf1c40f))
-        except:
-            arb = discord.Embed(title=CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'], ### making discord embed here
-                                description=CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
-                                colour=discord.Colour(0x900f0f))
-        arb.set_thumbnail(url='https://i.imgur.com/2Lyw9yo.png')
-        arb.set_footer(text=CurrentArbi['solnodedata']['tileset'])
-        async with aiohttp.ClientSession() as session:
-            webhook = Webhook.from_url(arbyhook, adapter=AsyncWebhookAdapter(session))
-            await webhook.send(username="Arbitration", avatar_url='https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128',content=content, embed=arb) ### sending embed to channel
+        for i in servers:
+            try:
+                guild = bot.get_guild(i['serverid'])
+            except:
+                pass
+            content = '' # prepares empty string, final string will post with multiple mentions
+            # ~~ Factions
+            for y in factions:
+                if y in CurrentArbi['solnodedata']['enemy']:
+                    try:
+                        role = discord.utils.get(guild.roles, name=str(y))
+                        content+=' '+role.mention
+                    except:
+                        pass
+            ## ~~ Mission types
+            for y in mtypes:
+                if y in CurrentArbi['solnodedata']['type']:
+                    try:
+                        role = discord.utils.get(guild.roles, name=str(y))
+                        content+=' '+role.mention
+                    except:
+                        pass
+                    for f in factions:
+                        if f in CurrentArbi['solnodedata']['enemy']:
+                            try:
+                                role = discord.utils.get(guild.roles, name=str(f)+' '+str(y))
+                                content+=' '+role.mention
+                            except:
+                                pass
+            # ~~ Dark sector bonus
+            x = ''
+            if CurrentArbi['solnodedata']['dark_sector'] == True:
+                x = 'Dark Sector (+{})'.format(CurrentArbi['solnodedata']['bonus'])
+            # ~~ Node mentions
+            try:
+                role = discord.utils.get(guild.roles, name=str(CurrentArbi['solnodedata']['node']))
+                content+=' '+role.mention
+                arb = discord.Embed(title=CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'], ### making discord embed here
+                                    description=CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
+                                    colour=discord.Colour(0xf1c40f))
+            except:
+                arb = discord.Embed(title=CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'], ### making discord embed here
+                                    description=CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
+                                    colour=discord.Colour(0x900f0f))
+            arb.set_thumbnail(url='https://i.imgur.com/2Lyw9yo.png')
+            arb.set_footer(text=CurrentArbi['solnodedata']['tileset'])
+            try:
+                async with aiohttp.ClientSession() as session:
+                    webhook = Webhook.from_url(i['arbywebhook'], adapter=AsyncWebhookAdapter(session))
+                    await webhook.send(username="Arbitration", avatar_url='https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128',content=content, embed=arb) ### sending embed to channel
+            except:
+                pass
         OldArbi = request_arby() ### setting old arbi to the one that was just posted, so it doesnt send duplicate
 
 @bot.event

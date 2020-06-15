@@ -8,6 +8,11 @@ import prettytable
 import datetime
 import time
 import sys
+from discord import Webhook, AsyncWebhookAdapter
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import aiohttp
+import re
+
 
 sys.path.append('../')
 from config import *
@@ -20,7 +25,17 @@ solNodes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-
 missionTypes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/missionTypes.json').json()
 sortieData = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/sortieData.json').json()
 lang = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/languages.json').json()
-
+sched = AsyncIOScheduler() # needed cause discord.py uses async
+sched.start() # starts scheduler for cron task
+gftla = []
+gftlb = []
+af    = []
+bf    = []
+inva  = []
+invb  = []
+redtext = []
+OldBaro = ""
+invasionitem = ['Orokin Reactor', 'Orokin Catalyst']
 
 
 class Warframe(commands.Cog):
@@ -431,7 +446,6 @@ class Warframe(commands.Cog):
     async def baroerror(self, ctx, error):
         await ctx.send(error)
 
-
     # sortie
     @bot.command(name="sortie")
     async def sortie(self, ctx):
@@ -450,15 +464,6 @@ class Warframe(commands.Cog):
     @sortie.error
     async def sortieerror(self, ctx, error):
         await ctx.send(error)
-
-    # arbitration
-    @bot.command(name="arby")
-    async def arby(self, ctx):
-        CurrentArbi = requests.get('https://10o.io/kuvalog.json').json()[0] ## semlar arbitration data
-        timestamp = datetime.datetime.fromisoformat(CurrentArbi['start'][:-1])
-        arb = discord.Embed(title=CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'], description=CurrentArbi['solnodedata']['tile'], colour=discord.Colour(0x900f0f), timestamp=timestamp)
-        arb.set_thumbnail(url='https://i.imgur.com/2Lyw9yo.png')
-        await ctx.send(embed=arb)
 
 def request_sortie():
     sortie = requests.get('http://content.warframe.com/dynamic/worldState.php').json()['Sorties'][0]
@@ -509,5 +514,135 @@ def request_baro():
             voidTrader['inventory'].append(i)
     return voidTrader
 
+async def baro_post_task():
+    global OldBaro
+    global CurrentBaro
+    global voidTrader
+    CurrentBaro = request_baro()
+    if not CurrentBaro == OldBaro: ## prevents duplicate posting
+        if CurrentBaro['active'] == True:
+            for i in servers:
+                x = prettytable.PrettyTable(["Item", "Ducats", "Credits"])
+                x.sortby = "Ducats"
+                x.reversesort=True
+                for item in CurrentBaro['inventory']:
+                    x.add_row((item["item"], item["ducats"], item["credits"]))
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        webhook = Webhook.from_url(i['barowebhook'], adapter=AsyncWebhookAdapter(session))
+                        await webhook.send(content='```'+str(x)+'```', avatar_url='https://content.warframe.com/MobileExport/Lotus/Interface/Icons/Player/BaroKiteerAvatar.png')
+                except:
+                    pass
+        OldBaro = CurrentBaro ### setting old baro to the one that was just posted, so it doesnt send duplicate
+
+async def gftl():
+    global gftla
+    global gftlb
+    gftlb = []
+    alerts = requests.get('https://api.warframestat.us/pc/alerts').json()
+    for alert in alerts:
+        if alert['id'] not in gftla:
+            if alert['mission']['description'] == 'Gift From The Lotus':
+                timestamp = datetime.datetime.fromisoformat(alert['expiry'][:-1])
+                embed = discord.Embed(title=alert['mission']['description'],
+                                      colour=discord.Colour(0x9013fe),
+                                      timestamp=timestamp)
+                embed.add_field(name='Node', value=alert['mission']['node'], inline=True)
+                embed.add_field(name='Mission Type', value=alert['mission']['type'], inline=True)
+                embed.add_field(name='Faction', value=alert['mission']['faction'], inline=True)
+                embed.add_field(name='Level', value=str(alert['mission']['minEnemyLevel'])+' - '+str(alert['mission']['maxEnemyLevel']), inline=True)
+                embed.add_field(name='Reward', value=alert['mission']['reward']['asString'], inline=False)
+                embed.set_footer(text=alert['id']+' / Ends')
+                for i in servers:
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            webhook = Webhook.from_url(i['giftinvasionswebhook'], adapter=AsyncWebhookAdapter(session))
+                            await webhook.send(embed=embed)
+                    except:
+                        pass
+            gftla.append(alert['id'])
+        gftlb.append(alert['id'])
+    for i in gftla:
+        if i not in gftlb:
+            gftla.remove(i)
+
+async def rt():
+    global redtext
+    xd = requests.get('https://10o.io/EE.log').json()
+    y = []
+    for i in xd:
+        if (i not in redtext) and ('IRC in: :[' in i['message']):
+            haha = re.search("IRC in: :([^ ]+) WALLOPS \:(.*)", i['message'])
+            for i in servers:
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        webhook = Webhook.from_url(i['redtextwebhook'], adapter=AsyncWebhookAdapter(session))
+                        await webhook.send('```diff\n- '+haha[2]+'```')
+                except:
+                    pass
+            redtext.append(i)
+        y.append(i)
+    for i in redtext:
+        if i not in y:
+            redtext.remove(i)
+
+async def inv():
+    global inva
+    global invb
+    invasions = requests.get('https://api.warframestat.us/pc/invasions').json()
+    for invasion in invasions:
+        if invasion['id'] not in inva:
+            node = invasion['node']
+            if invasion['vsInfestation'] == True:
+                attackReward = 'None'
+                defendReward = invasion['defenderReward']['countedItems'][0]
+                for i in invasionitem:
+                    if i in defendReward['type'] or i in defendReward['type']:
+                        embed = discord.Embed(title=invasion['node'],
+                                              colour=discord.Colour(invasion['attackerReward']['color']))
+                        embed.add_field(name=invasion['attackingFaction'], value=attackReward, inline=False)
+                        embed.add_field(name=invasion['defendingFaction'], value=defendReward['type'], inline=False)
+                        embed.set_author(name=invasion['desc'])
+                        embed.set_thumbnail(url=invasion['defenderReward']['thumbnail'])
+                        embed.set_footer(text=invasion['id'])
+                        for i in servers:
+                            try:
+                                async with aiohttp.ClientSession() as session:
+                                    webhook = Webhook.from_url(i['giftinvasionswebhook'], adapter=AsyncWebhookAdapter(session))
+                                    await webhook.send(embed=embed)
+                            except:
+                                pass
+            else:
+                defendReward = invasion['defenderReward']['countedItems'][0]
+                attackReward = invasion['attackerReward']['countedItems'][0]
+                for i in invasionitem:
+                    if i in defendReward['type'] or i in defendReward['type']:
+                        embed = discord.Embed(title=invasion['node'],
+                                              colour=discord.Colour(1))
+                        embed.add_field(name=invasion['attackingFaction'], value=attackReward['type'], inline=False)
+                        embed.add_field(name=invasion['defendingFaction'], value=defendReward['type'], inline=False)
+                        embed.set_author(name=invasion['desc'])
+                        if i in defendReward['type']:
+                            embed.set_thumbnail(url=invasion['defenderReward']['thumbnail'])
+                        else:
+                            embed.set_thumbnail(url=invasion['attackerReward']['thumbnail'])
+                        embed.set_footer(text=invasion['id'])
+                        for i in servers:
+                            try:
+                                async with aiohttp.ClientSession() as session:
+                                    webhook = Webhook.from_url(i['giftinvasionswebhook'], adapter=AsyncWebhookAdapter(session))
+                                    await webhook.send(embed=embed)
+                            except:
+                                pass
+            inva.append(invasion['id'])
+        invb.append(invasion['id'])
+    for i in inva:
+        if i not in invb:
+            inva.remove(i)
+
 def setup(bot):
+    sched.add_job(baro_post_task, trigger='cron', minute='*', id='Baro', misfire_grace_time=60, replace_existing=True) # trigger every minute, works best cus cron
+    sched.add_job(inv, trigger='cron', minute='*', id='Invasions', misfire_grace_time=60, replace_existing=True)
+    sched.add_job(gftl, trigger='cron', minute='*', id='GFTL', misfire_grace_time=60, replace_existing=True)
+    sched.add_job(rt, trigger='cron', minute='*', id='Redtext', misfire_grace_time=60, replace_existing=True)
     bot.add_cog(Warframe(bot))
