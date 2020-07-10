@@ -37,8 +37,6 @@ async def on_ready():
     await bot.change_presence(status=discord.Status.online, activity=discord.Activity(name='Starting up...', type=3))
     sched.add_job(arby_post_task, trigger='cron', minute='*', second='20', id='Elite', replace_existing=True) # trigger every minute, works best cus cron
 
-bot.load_extension("cogs.warframe")
-
 @bot.command(name="reload")
 @commands.is_owner()
 async def reload(ctx, cog):
@@ -139,21 +137,35 @@ async def arby_post_task():
             try:
                 role = discord.utils.get(guild.roles, name=str(CurrentArbi['solnodedata']['node']))
                 content+=' '+role.mention
-                arb = discord.Embed(title=CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'], ### making discord embed here
-                                    description=CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
-                                    colour=discord.Colour(0xf1c40f))
+                arb = {
+                       "content": content,
+                       "username": "Arbitration",
+                       "avatar_url": "https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128",
+                       "embeds": [{
+        		             "title": CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'],
+                             "description": CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
+                             "color": 15844367,
+                             "thumbnail": {"url": "https://i.imgur.com/2Lyw9yo.png"},
+                             "footer": {"text": CurrentArbi['solnodedata']['tileset']}
+                             }]
+                             }
             except:
-                arb = discord.Embed(title=CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'], ### making discord embed here
-                                    description=CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
-                                    colour=discord.Colour(0x900f0f))
-            arb.set_thumbnail(url='https://i.imgur.com/2Lyw9yo.png')
-            arb.set_footer(text=CurrentArbi['solnodedata']['tileset'])
+                arb = {
+                       "content": content,
+                       "username": "Arbitration",
+                       "avatar_url": "https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128",
+                       "embeds": [{
+        		             "title": CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'],
+                             "description": CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
+                             "color": 9441039,
+                             "thumbnail": {"url": "https://i.imgur.com/2Lyw9yo.png"},
+                             "footer": {"text": CurrentArbi['solnodedata']['tileset']}
+                             }]
+                             }
             try:
-                async with aiohttp.ClientSession() as session:
-                    webhook = Webhook.from_url(i['arbywebhook'], adapter=AsyncWebhookAdapter(session))
-                    await webhook.send(username="Arbitration", avatar_url='https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128',content=content, embed=arb) ### sending embed to channel
+                requests.post(i['arbywebhook'], json=arb)
             except:
-                pass
+                return
         OldArbi = request_arby() ### setting old arbi to the one that was just posted, so it doesnt send duplicate
 
 @bot.event
