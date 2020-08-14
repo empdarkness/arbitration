@@ -22,7 +22,7 @@ bot = commands.Bot(
 mtypes = ['Defense', 'Defection','Disruption', 'Excavation', 'Interception', 'Salvage', 'Survival']
 factions = ['Corpus', 'Grineer', 'Infested', 'Orokin']
 solnodes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/solNodes.json').json() ## personal node export
-CurrentArbi = requests.get('https://10o.io/kuvalog.json').json()[0] ## semlar arbitration data
+CurrentArbi = requests.get('https://10o.io/arbitrations.json').json()[0] ## semlar arbitration data
 OldArbi = CurrentArbi
 sched = AsyncIOScheduler() # needed cause discord.py uses async
 sched.start() # starts scheduler for cron task
@@ -36,6 +36,13 @@ async def on_ready():
     print('<-><-><-><-><-><-><-><-><-><-><->')
     await bot.change_presence(status=discord.Status.online, activity=discord.Activity(name='Starting up...', type=3))
     sched.add_job(arby_post_task, trigger='cron', minute='*', second='20', id='Elite', replace_existing=True) # trigger every minute, works best cus cron
+
+@bot.command(name="update")
+@commands.is_owner()
+async def update(ctx):
+    global solnodes
+    solnodes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/solNodes.json').json() ## personal node export
+    await ctx.send("Updated solnode list.")
 
 @bot.command(name="reload")
 @commands.is_owner()
@@ -79,13 +86,16 @@ async def unload(ctx, cog):
 
 def request_arby(): ### get updated arbitration data
     global CurrentArbi
-    CurrentArbi = requests.get('https://10o.io/kuvalog.json').json()[0]
-    CurrentArbi['solnodedata']['type'] = solnodes[CurrentArbi['solnode']]['type']
-    CurrentArbi['solnodedata']['enemy'] = solnodes[CurrentArbi['solnode']]['enemy']
-    CurrentArbi['solnodedata']['node'] = solnodes[CurrentArbi['solnode']]['node']
-    CurrentArbi['solnodedata']['planet'] = solnodes[CurrentArbi['solnode']]['planet']
-    CurrentArbi['solnodedata']['dark_sector'] = solnodes[CurrentArbi['solnode']]['dark_sector']
-    CurrentArbi['solnodedata']['tileset'] = solnodes[CurrentArbi['solnode']]['tileset']
+    CurrentArbi = requests.get('https://10o.io/arbitrations.json').json()[0]
+    try:
+        CurrentArbi['solnodedata']['type'] = solnodes[CurrentArbi['solnode']]['type']
+        CurrentArbi['solnodedata']['enemy'] = solnodes[CurrentArbi['solnode']]['enemy']
+        CurrentArbi['solnodedata']['node'] = solnodes[CurrentArbi['solnode']]['node']
+        CurrentArbi['solnodedata']['planet'] = solnodes[CurrentArbi['solnode']]['planet']
+        CurrentArbi['solnodedata']['dark_sector'] = solnodes[CurrentArbi['solnode']]['dark_sector']
+        CurrentArbi['solnodedata']['tileset'] = solnodes[CurrentArbi['solnode']]['tileset']
+    except KeyError:
+        print(CurrentArbi)
     if 'bonus' in solnodes[CurrentArbi['solnode']]:
         CurrentArbi['solnodedata']['bonus'] = solnodes[CurrentArbi['solnode']]['bonus']
     return CurrentArbi
