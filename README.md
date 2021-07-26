@@ -5,3 +5,5 @@ Python modules needed:
 - discord.py
 - apscheduler
 - requests
+
+Publicly hosted version available through [Altair](https://github.com/empdarkness/altair) under the `WFConfig` section.
