@@ -1,31 +1,24 @@
 import discord
-from discord.ext import commands
-import asyncio
+from discord.ext import commands, tasks
 import requests
-import json
-import time
 import datetime
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import sys
-import os
-from discord import Webhook, AsyncWebhookAdapter
-import aiohttp
 
 sys.path.append('../')
 from config import *
 
 
 bot = commands.Bot(
-    command_prefix='!',
-    allowed_mentions=discord.AllowedMentions(everyone=True, roles=True, users=True))
+    command_prefix='!', 
+    allowed_mentions=discord.AllowedMentions(everyone=True, roles=True, users=True),
+    intents=discord.Intents.default()
+    )
 
 mtypes = ['Defense', 'Defection','Disruption', 'Excavation', 'Interception', 'Salvage', 'Survival']
 factions = ['Corpus', 'Grineer', 'Infested', 'Orokin']
 solnodes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/solNodes.json').json() ## personal node export
 CurrentArbi = requests.get('https://10o.io/arbitrations.json').json()[0] ## semlar arbitration data
 OldArbi = CurrentArbi
-sched = AsyncIOScheduler() # needed cause discord.py uses async
-sched.start() # starts scheduler for cron task
 
 @bot.event
 async def on_ready():
@@ -35,7 +28,6 @@ async def on_ready():
     print('<->  ID: {}'.format(bot.user.id))
     print('<-><-><-><-><-><-><-><-><-><-><->')
     await bot.change_presence(status=discord.Status.online, activity=discord.Activity(name='Starting up...', type=3))
-    sched.add_job(arby_post_task, trigger='cron', minute='*', second='20', id='Elite', replace_existing=True) # trigger every minute, works best cus cron
 
 @bot.command(name="update")
 @commands.is_owner()
@@ -43,46 +35,6 @@ async def update(ctx):
     global solnodes
     solnodes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/solNodes.json').json() ## personal node export
     await ctx.send("Updated solnode list.")
-
-@bot.command(name="reload")
-@commands.is_owner()
-async def reload(ctx, cog):
-    extension = cog.title()
-    cog = 'cogs.'+str(cog)
-    bot.reload_extension(cog)
-    cog = bot.get_cog(extension)
-    print(cog)
-    reload = discord.Embed(title="Cog Reloaded: {}".format(extension),
-                           colour=discord.Colour(0x900f0f))
-    for x in cog.get_commands():
-        reload.add_field(name='{}'.format(x.name), value='  Enabled: {}'.format(x.enabled), inline=True)
-    await ctx.send(embed=reload)
-
-@bot.command(name="load")
-@commands.is_owner()
-async def load(ctx, cog):
-    extension = cog.title()
-    cog = 'cogs.'+str(cog)
-    bot.load_extension(cog)
-    cog = bot.get_cog(extension)
-    print(cog)
-    reload = discord.Embed(title="Cog Loaded: {}".format(extension),
-                           colour=discord.Colour(0x900f0f))
-    for x in cog.get_commands():
-        reload.add_field(name='{}'.format(x.name), value='  Enabled: {}'.format(x.enabled), inline=True)
-    await ctx.send(embed=reload)
-
-@bot.command(name="unload")
-@commands.is_owner()
-async def unload(ctx, cog):
-    extension = cog.title()
-    cog = 'cogs.'+str(cog)
-    bot.unload_extension(cog)
-    cog = bot.get_cog(extension)
-    print(cog)
-    reload = discord.Embed(title="Cog Unloaded: {}".format(extension),
-                           colour=discord.Colour(0x900f0f))
-    await ctx.send(embed=reload)
 
 def request_arby(): ### get updated arbitration data
     global CurrentArbi
@@ -100,16 +52,21 @@ def request_arby(): ### get updated arbitration data
         CurrentArbi['solnodedata']['bonus'] = solnodes[CurrentArbi['solnode']]['bonus']
     return CurrentArbi
 
+@tasks.loop(minutes=1)
 async def arby_post_task():
     global OldArbi
     global CurrentArbi
     CurrentArbi = request_arby()
     prescensetime = datetime.datetime.fromisoformat(CurrentArbi['end'][:-1]) - datetime.datetime.utcnow()
     prescensetime = prescensetime.seconds//60
-    await bot.change_presence(status=discord.Status.online, activity=discord.Activity(name=CurrentArbi['solnodedata']['enemy']+' - '+CurrentArbi['solnodedata']['type']+' on '+CurrentArbi['solnodedata']['node']+' ~ '+str(prescensetime)+' minutes remaining.', type=3))
-    if request_arby() == OldArbi: ## prevents duplicate posting
-        pass
-    else:
+    await bot.change_presence(
+        status=discord.Status.online,
+        activity=discord.Activity(
+            name=f"{CurrentArbi['solnodedata']['enemy']} - {CurrentArbi['solnodedata']['type']} on {CurrentArbi['solnodedata']['node']} ~ {prescensetime} minutes remaining.",
+            type=3
+        )
+    )
+    if CurrentArbi != OldArbi: ## prevents duplicate posting
         for i in servers:
             try:
                 guild = bot.get_guild(i['serverid'])
@@ -120,70 +77,62 @@ async def arby_post_task():
             for y in factions:
                 if y in CurrentArbi['solnodedata']['enemy']:
                     try:
-                        role = discord.utils.get(guild.roles, name=str(y))
-                        content+=' '+role.mention
+                        role = discord.utils.get(guild.roles, name=f"{y}")
+                        content+=f" {role.mention}"
                     except:
                         pass
             ## ~~ Mission types
             for y in mtypes:
                 if y in CurrentArbi['solnodedata']['type']:
                     try:
-                        role = discord.utils.get(guild.roles, name=str(y))
-                        content+=' '+role.mention
+                        role = discord.utils.get(guild.roles, name=f"{y}")
+                        content+=f" {role.mention}"
                     except:
                         pass
                     for f in factions:
                         if f in CurrentArbi['solnodedata']['enemy']:
                             try:
-                                role = discord.utils.get(guild.roles, name=str(f)+' '+str(y))
-                                content+=' '+role.mention
+                                role = discord.utils.get(guild.roles, name=f"{f} {y}")
+                                content+=f" {role.mention}"
                             except:
                                 pass
             # ~~ Dark sector bonus
             x = ''
             if CurrentArbi['solnodedata']['dark_sector'] == True:
-                x = 'Dark Sector (+{})'.format(CurrentArbi['solnodedata']['bonus'])
+                x = f"Dark Sector (+{CurrentArbi['solnodedata']['bonus']})"
             # ~~ Node mentions
+            arb = {
+                "content": content,
+                "username": "Arbitration",
+                "avatar_url": "https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128",
+                "embeds": [{
+                        "title": f"{CurrentArbi['solnodedata']['type']} - {CurrentArbi['solnodedata']['enemy']}",
+                        "description": f"{CurrentArbi['solnodedata']['node']} ({CurrentArbi['solnodedata']['planet']})\n{x}",
+                        "color": 9441039,
+                        "thumbnail": {"url": "https://i.imgur.com/2Lyw9yo.png"},
+                        "footer": {"text": CurrentArbi['solnodedata']['tileset']}
+                        }]
+                        }
             try:
                 role = discord.utils.get(guild.roles, name=str(CurrentArbi['solnodedata']['node']))
-                content+=' '+role.mention
-                arb = {
-                       "content": content,
-                       "username": "Arbitration",
-                       "avatar_url": "https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128",
-                       "embeds": [{
-        		             "title": CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'],
-                             "description": CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
-                             "color": 15844367,
-                             "thumbnail": {"url": "https://i.imgur.com/2Lyw9yo.png"},
-                             "footer": {"text": CurrentArbi['solnodedata']['tileset']}
-                             }]
-                             }
-            except:
-                arb = {
-                       "content": content,
-                       "username": "Arbitration",
-                       "avatar_url": "https://cdn.discordapp.com/avatars/705812867781492777/0f0d8efa6759afa9d2bb2618d59dd306.png?size=128",
-                       "embeds": [{
-        		             "title": CurrentArbi['solnodedata']['type'] + " - " + CurrentArbi['solnodedata']['enemy'],
-                             "description": CurrentArbi['solnodedata']['node']+' ('+CurrentArbi['solnodedata']['planet']+')\n'+x,
-                             "color": 9441039,
-                             "thumbnail": {"url": "https://i.imgur.com/2Lyw9yo.png"},
-                             "footer": {"text": CurrentArbi['solnodedata']['tileset']}
-                             }]
-                             }
+                content+=f' {role.mention}'
+                arb['embeds'][0]['color'] = 15844367 # change embed color to gold if role matching node name is found
+
+            except: # if this fails, it means the role wasnt found, therefor its pointless to catch exceptions specifically here
+                pass
             try:
                 requests.post(i['arbywebhook'], json=arb)
-            except:
-                return
+            except Exception as e:
+                print(e)
         OldArbi = request_arby() ### setting old arbi to the one that was just posted, so it doesnt send duplicate
 
 @bot.event
 async def on_command_error(ctx, error):
-    if isinstance(error, CommandNotFound):
+    if isinstance(error, commands.CommandNotFound):
         pass
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         pass
+
 bot.run(token, bot=True, reconnect=True)
