@@ -52,7 +52,7 @@ def request_arby(): ### get updated arbitration data
         CurrentArbi['solnodedata']['bonus'] = solnodes[CurrentArbi['solnode']]['bonus']
     return CurrentArbi
 
-@tasks.loop(minutes=1)
+@tasks.loop(minutes=1, reconnect=True)
 async def arby_post_task():
     global OldArbi
     global CurrentArbi
