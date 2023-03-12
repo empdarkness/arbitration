@@ -3,6 +3,7 @@ from discord.ext import commands, tasks
 import requests
 import datetime
 import sys
+import json
 
 sys.path.append('../')
 from config import *
@@ -16,7 +17,8 @@ bot = commands.Bot(
 
 mtypes = ['Defense', 'Defection','Disruption', 'Excavation', 'Interception', 'Salvage', 'Survival']
 factions = ['Corpus', 'Grineer', 'Infested', 'Orokin']
-solnodes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/solNodes.json').json() ## personal node export
+with open('./solNodes.json') as f:
+    solnodes = json.load(f)
 CurrentArbi = requests.get('https://10o.io/arbitrations.json').json()[0] ## semlar arbitration data
 OldArbi = CurrentArbi
 
@@ -33,7 +35,8 @@ async def on_ready():
 @commands.is_owner()
 async def update(ctx):
     global solnodes
-    solnodes = requests.get('https://raw.githubusercontent.com/empdarkness/warframe-data/master/solNodes.json').json() ## personal node export
+    with open('./solNodes.json') as f:
+        solnodes = json.load(f)
     await ctx.send("Updated solnode list.")
 
 def request_arby(): ### get updated arbitration data
