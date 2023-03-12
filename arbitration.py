@@ -48,7 +48,10 @@ def request_arby(): ### get updated arbitration data
         CurrentArbi['solnodedata']['node'] = solnodes[CurrentArbi['solnode']]['node']
         CurrentArbi['solnodedata']['planet'] = solnodes[CurrentArbi['solnode']]['planet']
         CurrentArbi['solnodedata']['dark_sector'] = solnodes[CurrentArbi['solnode']]['dark_sector']
+        if CurrentArbi['solnodedata']['dark_sector']:
+            CurrentArbi['solnodedata']['dark_sector_bonus'] = solnodes[CurrentArbi['solnode']]['dark_sector_bonus']
         CurrentArbi['solnodedata']['tileset'] = solnodes[CurrentArbi['solnode']]['tileset']
+
     except KeyError:
         print(CurrentArbi)
     if 'bonus' in solnodes[CurrentArbi['solnode']]:
@@ -102,7 +105,7 @@ async def arby_post_task():
             # ~~ Dark sector bonus
             x = ''
             if CurrentArbi['solnodedata']['dark_sector'] == True:
-                x = f"Dark Sector (+{CurrentArbi['solnodedata']['bonus']})"
+                x = f"Dark Sector (+{CurrentArbi['solnodedata']['dark_sector_bonus']['resource']}%)"
             # ~~ Node mentions
             arb = {
                 "content": content,
