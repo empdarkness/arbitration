@@ -6,4 +6,5 @@ Python modules needed:
 - discord.py
 - requests
 
-Publicly hosted version available through [Altair](https://github.com/empdarkness/altair) under the `WFConfig` section.
+Publicly hosted and more feature rich version available through [Altair](https://docs.empx.cc/altair/notifications#arbitration-alerts).
+<br>Altair version includes node tiers and upcoming nodes.
